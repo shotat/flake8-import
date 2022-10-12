@@ -107,6 +107,8 @@ class ImportChecker(object):
 
                     if alias.asname is None:
                         continue
+                    if len(rule.import_rule.allowed_asnames) == 0:
+                        continue
                     if alias.asname not in rule.import_rule.allowed_asnames:
                         error = Flake8Error(
                             code="X300",
