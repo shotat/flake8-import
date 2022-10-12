@@ -1,12 +1,9 @@
 rules:
   - module: datetime
-    use_from: false
-    asnames:
+    allow_import: false
+    allow_from_import: false
+    allow_import_as_names:
     - dt
-    names:
-    - name: date
-      asnames:
-      - d
   - module: ast
     use_from: true
     names:
