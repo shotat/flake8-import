@@ -5,3 +5,6 @@ dist: flake8_import.py
 
 run: dist
 	flake8 tests
+
+fmt:
+	black flake8_import.py
