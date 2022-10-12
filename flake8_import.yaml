@@ -1,12 +1,7 @@
 rules:
   - module: datetime
-    allow_import: false
-    allow_from_import: false
-    allow_import_as_names:
-    - dt
-  - module: ast
-    use_from: true
-    names:
-    - name: arg
-      asnames:
-      - d
+    import:
+      enabled: true
+      allowed_asnames: ['dt']
+    import_from:
+      enabled: false
