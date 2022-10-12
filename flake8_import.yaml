@@ -1,7 +1,7 @@
 rules:
   - module: datetime
-    allow_from_import: false
+    use_from: false
     names:
       name: date
-      allow_asnames:
-      - "d"
+      asnames:
+      - d

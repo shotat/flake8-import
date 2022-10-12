@@ -1,13 +1,11 @@
 import ast
 from dataclasses import dataclass
 
-import astpretty
-
 
 @dataclass
 class NameRule:
     name: str
-    allow_asnames: list[str]
+    asnames: list[str]
 
 
 @dataclass
@@ -25,7 +23,7 @@ default_rules = [
         name_rules=[
             NameRule(
                 name="date",
-                allow_asnames=["d"],
+                asnames=["d"],
             )
         ],
     )
@@ -34,14 +32,16 @@ default_rules = [
 __version__ = "0.0.1"
 
 
+@dataclass
 class Flake8Error:
-    def __init__(self, *, code: str, message: str):
-        self._code = code
-        self._message = message
+    code: str
+    message: str
+    lineno: int
+    col_offset: int
 
     @property
     def error_message(self) -> str:
-        return f"{self._code} {self._message}"
+        return f"{self.code} {self.message}"
 
 
 class ImportChecker(object):
@@ -54,52 +54,67 @@ class ImportChecker(object):
 
     def run(self):
         for child in ast.iter_child_nodes(self.tree):
-            if err := self._check_node(child):
-                yield child.lineno, child.col_offset, err.error_message, type(self)
+            for err in self._check_node(child):
+                yield err.lineno, err.col_offset, err.error_message, type(self)
 
-    def _check_node(self, node: ast.AST) -> Flake8Error | None:
+    def _check_node(self, node: ast.AST) -> list[Flake8Error]:
         if isinstance(node, ast.Import):
             return self._process_import(node)
         if isinstance(node, ast.ImportFrom):
             return self._process_import_from(node)
-        return None
+        return []
 
-    def _process_import(self, node: ast.Import) -> Flake8Error | None:
+    def _process_import(self, node: ast.Import) -> list[Flake8Error]:
         """import のチェック"""
+        errors: list[Flake8Error] = []
         for rule in self.rules:
-            for node_name in node.names:
-                if rule.module_name == node_name.name:
+            for aliases in node.names:
+                if rule.module_name == aliases.name:
                     if rule.use_from:
-                        return Flake8Error(
+                        error = Flake8Error(
                             code="X100",
-                            message="use import ... from instead.",
+                            message=f"`import {rule.module_name}` is detected. use `from {node.module} import ...` instead.",
+                            lineno=aliases.lineno,
+                            col_offset=aliases.col_offset,
                         )
+                        errors.append(error)
                     else:
                         for name_rule in rule.name_rules:
-                            if node_name.asname is not None:
-                                if node_name.asname not in name_rule.allow_asnames:
-                                    return Flake8Error(
+                            if aliases.asname is not None:
+                                if aliases.asname not in name_rule.asnames:
+                                    error = Flake8Error(
                                         code="X300",
-                                        message="not allowed as name is detected.",
+                                        message=f"`import {aliases.name} as {aliases.asname}` is not allowed.",
+                                        lineno=aliases.lineno,
+                                        col_offset=aliases.col_offset,
                                     )
+                                    errors.append(error)
+        return errors
 
-
-    def _process_import_from(self, node: ast.ImportFrom) -> Flake8Error | None:
+    def _process_import_from(self, node: ast.ImportFrom) -> list[Flake8Error]:
         """import ... from のチェック"""
-        # astpretty.pprint(ast.parse(node))
+        errors: list[Flake8Error] = []
         for rule in self.rules:
             if rule.module_name == node.module:
                 if rule.use_from:
                     for name_rule in rule.name_rules:
-                        for node_name in node.names:
-                            if name_rule.name == node_name:
-                                if node_name.asname is not None:
-                                    if node_name.asname not in name_rule.allow_asnames:
-                                        return Flake8Error(
+                        for aliases in node.names:
+                            if name_rule.name == aliases:
+                                if aliases.asname is not None:
+                                    if aliases.asname not in name_rule.asnames:
+                                        error = Flake8Error(
                                             code="X300",
-                                            message="not allowed as name is detected.",
+                                            message=f"`import {aliases.name} as {aliases.asname}` is not allowed.",
+                                            lineno=aliases.lineno,
+                                            col_offset=aliases.col_offset,
                                         )
+                                        errors.append(error)
                 else:
-                    return Flake8Error(
-                        code="X200", message="use import instead."
+                    error = Flake8Error(
+                        code="X200",
+                        message=f"`from {node.module} import ...` is detected. use `import {node.module}` instead.",
+                        lineno=node.lineno,
+                        col_offset=node.col_offset,
                     )
+                    errors.append(error)
+        return errors
