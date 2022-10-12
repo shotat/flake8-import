@@ -5,7 +5,7 @@ from dataclasses import dataclass
 @dataclass
 class ImportRule:
     enabled: bool
-    allowed_asnames: list[str]
+    allowed_asnames: list[str] | None
 
 
 @dataclass
@@ -107,10 +107,12 @@ class ImportChecker(object):
 
                     if alias.asname is None:
                         continue
+                    if rule.import_rule.allowed_asnames is None:
+                        continue
                     if alias.asname not in rule.import_rule.allowed_asnames:
                         error = Flake8Error(
                             code="X300",
-                            message=f"`import {alias.name} as {alias.asname}` is not allowed.",
+                            message=f"`import {alias.name} as {alias.asname}` is not allowed. Hint: following asnames are allowed ... {rule.import_rule.allowed_asnames}",
                             lineno=alias.lineno,
                             col_offset=alias.col_offset,
                         )
