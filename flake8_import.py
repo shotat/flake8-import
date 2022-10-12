@@ -12,15 +12,16 @@ class NameRule:
 
 @dataclass
 class Rule:
+    # e.g. defusedxml.ElementTree, bs4
     module_name: str
-    allow_from_import: bool
+    use_from: bool
     name_rules: list[NameRule]
 
 
 default_rules = [
     Rule(
         module_name="datetime",
-        allow_from_import=False,
+        use_from=False,
         name_rules=[
             NameRule(
                 name="date",
@@ -64,24 +65,41 @@ class ImportChecker(object):
         return None
 
     def _process_import(self, node: ast.Import) -> Flake8Error | None:
-        astpretty.pprint(ast.parse(node))
-        return Flake8Error(code="X100", message="found import")
+        """import のチェック"""
+        for rule in self.rules:
+            for node_name in node.names:
+                if rule.module_name == node_name.name:
+                    if rule.use_from:
+                        return Flake8Error(
+                            code="X100",
+                            message="use import ... from instead.",
+                        )
+                    else:
+                        for name_rule in rule.name_rules:
+                            if node_name.asname is not None:
+                                if node_name.asname not in name_rule.allow_asnames:
+                                    return Flake8Error(
+                                        code="X300",
+                                        message="not allowed as name is detected.",
+                                    )
+
 
     def _process_import_from(self, node: ast.ImportFrom) -> Flake8Error | None:
         """import ... from のチェック"""
-        astpretty.pprint(ast.parse(node))
+        # astpretty.pprint(ast.parse(node))
         for rule in self.rules:
             if rule.module_name == node.module:
-                if rule.allow_from_import:
+                if rule.use_from:
                     for name_rule in rule.name_rules:
                         for node_name in node.names:
                             if name_rule.name == node_name:
-                                if node_name.asname not in name_rule.allow_asnames:
-                                    return Flake8Error(
-                                        code="X201",
-                                        message="not allowed as name is detected.",
-                                    )
+                                if node_name.asname is not None:
+                                    if node_name.asname not in name_rule.allow_asnames:
+                                        return Flake8Error(
+                                            code="X300",
+                                            message="not allowed as name is detected.",
+                                        )
                 else:
                     return Flake8Error(
-                        code="X200", message="import from statement is not allowed."
+                        code="X200", message="use import instead."
                     )
