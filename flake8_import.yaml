@@ -1,7 +1,15 @@
 rules:
   - module: datetime
     use_from: false
+    asnames:
+    - dt
     names:
-      name: date
+    - name: date
+      asnames:
+      - d
+  - module: ast
+    use_from: true
+    names:
+    - name: arg
       asnames:
       - d

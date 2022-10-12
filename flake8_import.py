@@ -2,6 +2,7 @@ import ast
 from dataclasses import dataclass
 
 
+
 @dataclass
 class NameRule:
     name: str
@@ -13,6 +14,7 @@ class Rule:
     # e.g. defusedxml.ElementTree, bs4
     module_name: str
     use_from: bool
+    asnames: list[str]
     name_rules: list[NameRule]
 
 
@@ -20,6 +22,7 @@ default_rules = [
     Rule(
         module_name="datetime",
         use_from=False,
+        asnames=["dt"],
         name_rules=[
             NameRule(
                 name="date",
@@ -68,25 +71,27 @@ class ImportChecker(object):
         """import のチェック"""
         errors: list[Flake8Error] = []
         for rule in self.rules:
-            for aliases in node.names:
-                if rule.module_name == aliases.name:
+            for alias in node.names:
+                if rule.module_name == alias.name:
                     if rule.use_from:
                         error = Flake8Error(
                             code="X100",
                             message=f"`import {rule.module_name}` is detected. use `from {node.module} import ...` instead.",
-                            lineno=aliases.lineno,
-                            col_offset=aliases.col_offset,
+                            lineno=alias.lineno,
+                            col_offset=alias.col_offset,
                         )
                         errors.append(error)
                     else:
+                        if alias.asname not in rule.asnames:
+                            pass
                         for name_rule in rule.name_rules:
-                            if aliases.asname is not None:
-                                if aliases.asname not in name_rule.asnames:
+                            if alias.asname is not None:
+                                if alias.asname not in name_rule.asnames:
                                     error = Flake8Error(
                                         code="X300",
-                                        message=f"`import {aliases.name} as {aliases.asname}` is not allowed.",
-                                        lineno=aliases.lineno,
-                                        col_offset=aliases.col_offset,
+                                        message=f"`import {alias.name} as {alias.asname}` is not allowed.",
+                                        lineno=alias.lineno,
+                                        col_offset=alias.col_offset,
                                     )
                                     errors.append(error)
         return errors
@@ -98,15 +103,15 @@ class ImportChecker(object):
             if rule.module_name == node.module:
                 if rule.use_from:
                     for name_rule in rule.name_rules:
-                        for aliases in node.names:
-                            if name_rule.name == aliases:
-                                if aliases.asname is not None:
-                                    if aliases.asname not in name_rule.asnames:
+                        for alias in node.names:
+                            if name_rule.name == alias.name:
+                                if alias.asname is not None:
+                                    if alias.asname not in name_rule.asnames:
                                         error = Flake8Error(
                                             code="X300",
-                                            message=f"`import {aliases.name} as {aliases.asname}` is not allowed.",
-                                            lineno=aliases.lineno,
-                                            col_offset=aliases.col_offset,
+                                            message=f"`import {alias.name} as {alias.asname}` is not allowed.",
+                                            lineno=alias.lineno,
+                                            col_offset=alias.col_offset,
                                         )
                                         errors.append(error)
                 else:
