@@ -1,0 +1,15 @@
+[[package]]
+name = "astpretty"
+version = "3.0.0"
+description = "Pretty print the output of python stdlib `ast.parse`."
+category = "dev"
+optional = false
+python-versions = ">=3.8"
+
+[metadata]
+lock-version = "1.1"
+python-versions = "^3.10"
+content-hash = "8f469a2c2640c3fe7d567be0f76870c6d9d499ae594b52ebab918f6b3e75f536"
+
+[metadata.files]
+astpretty = []
