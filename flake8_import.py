@@ -2,34 +2,57 @@ import ast
 from dataclasses import dataclass
 
 
+@dataclass
+class ImportRule:
+    enabled: bool
+    allowed_asnames: list[str]
+
 
 @dataclass
-class NameRule:
-    name: str
-    asnames: list[str]
+class ImportFromRule:
+    enabled: bool
 
 
 @dataclass
 class Rule:
     # e.g. defusedxml.ElementTree, bs4
     module_name: str
-    use_from: bool
-    asnames: list[str]
-    name_rules: list[NameRule]
+    # from xxx import ...
+    import_rule: ImportRule
+    import_from_rule: ImportFromRule
 
 
 default_rules = [
     Rule(
         module_name="datetime",
-        use_from=False,
-        asnames=["dt"],
-        name_rules=[
-            NameRule(
-                name="date",
-                asnames=["d"],
-            )
-        ],
-    )
+        import_rule=ImportRule(
+            enabled=True,
+            allowed_asnames=["dt"],
+        ),
+        import_from_rule=ImportFromRule(
+            enabled=False,
+        ),
+    ),
+    Rule(
+        module_name="ast",
+        import_rule=ImportRule(
+            enabled=True,
+            allowed_asnames=["a"],
+        ),
+        import_from_rule=ImportFromRule(
+            enabled=False,
+        ),
+    ),
+    Rule(
+        module_name="dataclasses",
+        import_rule=ImportRule(
+            enabled=False,
+            allowed_asnames=[],
+        ),
+        import_from_rule=ImportFromRule(
+            enabled=True,
+        ),
+    ),
 ]
 
 __version__ = "0.0.1"
@@ -64,7 +87,7 @@ class ImportChecker(object):
         if isinstance(node, ast.Import):
             return self._process_import(node)
         if isinstance(node, ast.ImportFrom):
-            return self._process_import_from(node)
+            return self._process_from_import(node)
         return []
 
     def _process_import(self, node: ast.Import) -> list[Flake8Error]:
@@ -73,48 +96,33 @@ class ImportChecker(object):
         for rule in self.rules:
             for alias in node.names:
                 if rule.module_name == alias.name:
-                    if rule.use_from:
+                    if not rule.import_rule.enabled:
                         error = Flake8Error(
                             code="X100",
-                            message=f"`import {rule.module_name}` is detected. use `from {node.module} import ...` instead.",
+                            message=f"`import {rule.module_name}` is detected. use `from {rule.module_name} import ...` instead.",
                             lineno=alias.lineno,
                             col_offset=alias.col_offset,
                         )
                         errors.append(error)
-                    else:
-                        if alias.asname not in rule.asnames:
-                            pass
-                        for name_rule in rule.name_rules:
-                            if alias.asname is not None:
-                                if alias.asname not in name_rule.asnames:
-                                    error = Flake8Error(
-                                        code="X300",
-                                        message=f"`import {alias.name} as {alias.asname}` is not allowed.",
-                                        lineno=alias.lineno,
-                                        col_offset=alias.col_offset,
-                                    )
-                                    errors.append(error)
+
+                    if alias.asname is None:
+                        continue
+                    if alias.asname not in rule.import_rule.allowed_asnames:
+                        error = Flake8Error(
+                            code="X300",
+                            message=f"`import {alias.name} as {alias.asname}` is not allowed.",
+                            lineno=alias.lineno,
+                            col_offset=alias.col_offset,
+                        )
+                        errors.append(error)
         return errors
 
-    def _process_import_from(self, node: ast.ImportFrom) -> list[Flake8Error]:
-        """import ... from のチェック"""
+    def _process_from_import(self, node: ast.ImportFrom) -> list[Flake8Error]:
+        """from ... import のチェック"""
         errors: list[Flake8Error] = []
         for rule in self.rules:
             if rule.module_name == node.module:
-                if rule.use_from:
-                    for name_rule in rule.name_rules:
-                        for alias in node.names:
-                            if name_rule.name == alias.name:
-                                if alias.asname is not None:
-                                    if alias.asname not in name_rule.asnames:
-                                        error = Flake8Error(
-                                            code="X300",
-                                            message=f"`import {alias.name} as {alias.asname}` is not allowed.",
-                                            lineno=alias.lineno,
-                                            col_offset=alias.col_offset,
-                                        )
-                                        errors.append(error)
-                else:
+                if not rule.import_from_rule.enabled:
                     error = Flake8Error(
                         code="X200",
                         message=f"`from {node.module} import ...` is detected. use `import {node.module}` instead.",
